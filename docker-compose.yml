@@ -1,0 +1,15 @@
+version: '3.7'
+
+services:
+
+  # Code
+  aoc:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bash
+    tty: true
+    stdin_open: true
+
+volumes:
+  node_modules:
