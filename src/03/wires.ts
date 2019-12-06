@@ -5,36 +5,48 @@ type Coordinate = {
   y: number;
 };
 
+type CoordinateSteps = {
+  coord: Coordinate;
+  totalStepCount: number;
+};
+
+type LineStepCount = {
+  id: number;
+  stepCount: number;
+};
+
 interface GridAndIntersections {
-  grid: number[][];
-  intersections: Coordinate[];
+  grid: LineStepCount[][];
+  intersections: CoordinateSteps[];
 }
 
 function initializeGrid(): GridAndIntersections {
-  const grid = new Array<number[]>();
+  const grid = new Array<LineStepCount[]>();
 
   return {
     grid: grid,
-    intersections: new Array<Coordinate>()
+    intersections: new Array<CoordinateSteps>()
   };
 }
 
 function setWirePath(
   gridAndIntersections: GridAndIntersections,
   coord: Coordinate,
-  id: number
+  lineStepCount: LineStepCount
 ) {
   if (gridAndIntersections.grid[coord.x] === undefined) {
-    gridAndIntersections.grid[coord.x] = new Array<number>();
+    gridAndIntersections.grid[coord.x] = new Array<LineStepCount>();
   }
 
-  if (
-    gridAndIntersections.grid[coord.x][coord.y] &&
-    gridAndIntersections.grid[coord.x][coord.y] !== id
-  ) {
-    gridAndIntersections.intersections.push(coord);
+  const cell = gridAndIntersections.grid[coord.x][coord.y];
+
+  if (cell && cell.id !== lineStepCount.id) {
+    gridAndIntersections.intersections.push({
+      coord: coord,
+      totalStepCount: cell.stepCount + lineStepCount.stepCount
+    });
   }
-  gridAndIntersections.grid[coord.x][coord.y] = id;
+  gridAndIntersections.grid[coord.x][coord.y] = lineStepCount;
 }
 
 function traceWire(
@@ -44,27 +56,44 @@ function traceWire(
 ) {
   let x = 0;
   let y = 0;
+  let stepCount = 0;
   wirePath.split(",").forEach(path => {
     const wireLength = parseInt(path.slice(1), 10);
     switch (path[0]) {
       case "U":
         for (let i = 0; i < wireLength; i++) {
-          setWirePath(gridAndIntersections, { x: x, y: ++y }, id);
+          setWirePath(
+            gridAndIntersections,
+            { x: x, y: ++y },
+            { id: id, stepCount: ++stepCount }
+          );
         }
         break;
       case "D":
         for (let i = 0; i < wireLength; i++) {
-          setWirePath(gridAndIntersections, { x: x, y: --y }, id);
+          setWirePath(
+            gridAndIntersections,
+            { x: x, y: --y },
+            { id: id, stepCount: ++stepCount }
+          );
         }
         break;
       case "L":
         for (let i = 0; i < wireLength; i++) {
-          setWirePath(gridAndIntersections, { x: --x, y: y }, id);
+          setWirePath(
+            gridAndIntersections,
+            { x: --x, y: y },
+            { id: id, stepCount: ++stepCount }
+          );
         }
         break;
       case "R":
         for (let i = 0; i < wireLength; i++) {
-          setWirePath(gridAndIntersections, { x: ++x, y: y }, id);
+          setWirePath(
+            gridAndIntersections,
+            { x: ++x, y: y },
+            { id: id, stepCount: ++stepCount }
+          );
         }
         break;
       default:
@@ -81,12 +110,31 @@ export function findClosestIntersection(
   traceWire(grid, wireOnePath, 1);
   traceWire(grid, wireTwoPath, 2);
   return grid.intersections
-    .map(coord => Math.abs(coord.x) + Math.abs(coord.y))
+    .map(
+      coordStepCount =>
+        Math.abs(coordStepCount.coord.x) + Math.abs(coordStepCount.coord.y)
+    )
     .sort()[0];
+}
+
+export function findFewestStepsIntersection(
+  wireOnePath: string,
+  wireTwoPath: string
+): number {
+  let grid = initializeGrid();
+  traceWire(grid, wireOnePath, 1);
+  traceWire(grid, wireTwoPath, 2);
+  return grid.intersections
+    .map(coordStepCount => coordStepCount.totalStepCount)
+    .sort((a, b) => a - b)[0];
 }
 
 if (require.main === module) {
   readlines(process.stdin).then(wires => {
-    console.log(findClosestIntersection(wires[0], wires[1]));
+    if (process.env.P1) {
+      console.log(findClosestIntersection(wires[0], wires[1]));
+    } else {
+      console.log(findFewestStepsIntersection(wires[0], wires[1]));
+    }
   });
 }
