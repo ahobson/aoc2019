@@ -1,12 +1,23 @@
 import { readlines } from "../utils/readlines";
 
-export function hasAdjacentDigits(input: string): boolean {
+export function hasTwoAdjacentDigits(input: string): boolean {
+  let currentMatch: string = "";
   for (let i = 0; i < input.length - 1; i++) {
-    if (input[i] == input[i + 1]) {
-      return true;
+    //    console.log("input", input, "i", i, "currentMatch", currentMatch);
+    if (input[i] === input[i + 1]) {
+      if (currentMatch.length === 0) {
+        currentMatch = input.slice(i, i + 2);
+      } else {
+        currentMatch = currentMatch.concat(input[i]);
+      }
+    } else {
+      if (currentMatch.length === 2) {
+        return true;
+      }
+      currentMatch = "";
     }
   }
-  return false;
+  return currentMatch.length === 2;
 }
 
 export function hasMonotonicallyIncreasingDigits(input: string): boolean {
@@ -22,7 +33,7 @@ export function hasMonotonicallyIncreasingDigits(input: string): boolean {
 export function isMatchingPassword(input: string): boolean {
   return (
     input.length == 6 &&
-    hasAdjacentDigits(input) &&
+    hasTwoAdjacentDigits(input) &&
     hasMonotonicallyIncreasingDigits(input)
   );
 }
