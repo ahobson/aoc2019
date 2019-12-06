@@ -26,7 +26,7 @@ class MemoryWritable extends Writable {
 
 describe("intcode", () => {
   it("should run program", async () => {
-    const rin = new Readable();
+    let rin = new Readable();
     rin.push("1\n");
     rin.push(null); // eslint-disable-line
 
@@ -39,5 +39,32 @@ describe("intcode", () => {
     wout = new MemoryWritable();
     await runProgram("1101,55,-1,0,4,0,99", rin, wout);
     expect(wout.stringData()).toStrictEqual("Opcode 4: 54\n");
+
+    rin = new Readable();
+    rin.push("8\n");
+    rin.push(null);
+    wout = new MemoryWritable();
+    await runProgram("3,9,8,9,10,9,4,9,99,-1,8", rin, wout);
+    expect(wout.stringData()).toStrictEqual(
+      "Opcode 3: reading input\nOpcode 4: 1\n"
+    );
+
+    rin = new Readable();
+    rin.push("8\n");
+    rin.push(null);
+    wout = new MemoryWritable();
+    await runProgram("3,3,1107,-1,8,3,4,3,99", rin, wout);
+    expect(wout.stringData()).toStrictEqual(
+      "Opcode 3: reading input\nOpcode 4: 0\n"
+    );
+
+    rin = new Readable();
+    rin.push("8\n");
+    rin.push(null);
+    wout = new MemoryWritable();
+    await runProgram("3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9", rin, wout);
+    expect(wout.stringData()).toStrictEqual(
+      "Opcode 3: reading input\nOpcode 4: 1\n"
+    );
   });
 });

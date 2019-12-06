@@ -83,10 +83,37 @@ async function run(
           ptr += 2;
         }
         break;
+      case 5:
+      case 6:
+        {
+          const v1 = getParameterValue(workingMemory, instr.c, ptr + 1);
+          const v2 = getParameterValue(workingMemory, instr.b, ptr + 2);
+          if ((instr.op === 5 && v1 !== 0) || (instr.op === 6 && v1 === 0)) {
+            ptr = v2;
+          } else {
+            ptr += 3;
+          }
+        }
+        break;
+      case 7:
+      case 8:
+        {
+          const v1 = getParameterValue(workingMemory, instr.c, ptr + 1);
+          const v2 = getParameterValue(workingMemory, instr.b, ptr + 2);
+          const p3 = workingMemory[ptr + 3];
+          // parameters that are written are always position mode
+          if ((instr.op === 7 && v1 < v2) || (instr.op === 8 && v1 === v2)) {
+            workingMemory[p3] = 1;
+          } else {
+            workingMemory[p3] = 0;
+          }
+          ptr += 4;
+        }
+        break;
       case 99:
         return workingMemory;
       default:
-        throw Error(`Unknown instr: ${instr}, rawOp: ${rawOp}, ptr: ${ptr}`);
+        throw Error(`Unknown op: ${instr.op}, rawOp: ${rawOp}, ptr: ${ptr}`);
     }
     rawOp = workingMemory[ptr];
     instr = parseInstruction(rawOp);
