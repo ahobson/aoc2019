@@ -1,4 +1,4 @@
-import { readlines } from "../utils/readlines";
+import { readlines } from "../utils/io";
 
 type Coordinate = {
   x: number;

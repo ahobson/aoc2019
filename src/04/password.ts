@@ -1,4 +1,4 @@
-import { readlines } from "../utils/readlines";
+import { readlines } from "../utils/io";
 
 export function hasTwoAdjacentDigits(input: string): boolean {
   let currentMatch: string = "";
