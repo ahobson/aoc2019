@@ -57,9 +57,55 @@ export function checksumMap(orbitMap: OrbitMap) {
   return totalCount;
 }
 
+export function findOrbitalTransfers(
+  orbitMap: OrbitMap,
+  planetOne: string,
+  planetTwo: string
+): number {
+  let oPlanet: string | undefined = planetOne;
+  let oPath: string[] = [];
+  let tPlanet: string | undefined = planetTwo;
+  let tPath: string[] = [];
+  while (orbitMap[oPlanet].depth !== orbitMap[tPlanet].depth) {
+    if (orbitMap[oPlanet].depth < orbitMap[tPlanet].depth) {
+      tPlanet = orbitMap[tPlanet].parent;
+      if (tPlanet === undefined) {
+        throw Error("undefined tPlanet");
+      }
+      tPath.push(tPlanet);
+    } else {
+      oPlanet = orbitMap[oPlanet].parent;
+      if (oPlanet === undefined) {
+        throw Error("undefined oPlanet");
+      }
+      oPath.push(oPlanet);
+    }
+  }
+
+  while (oPlanet !== tPlanet) {
+    tPlanet = orbitMap[tPlanet].parent;
+    if (tPlanet === undefined) {
+      throw Error("undefined tPlanet");
+    }
+    tPath.push(tPlanet);
+    oPlanet = orbitMap[oPlanet].parent;
+    if (oPlanet === undefined) {
+      throw Error("undefined oPlanet");
+    }
+    oPath.push(oPlanet);
+  }
+  // -1 tPath YOU is already around planet
+  // -1 oPath SAN is already around planet
+  return tPath.length + oPath.length - 2;
+}
+
 if (require.main === module) {
   readlines(process.stdin).then(lines => {
     const map = generateMap(lines);
-    console.log(checksumMap(map));
+    if (process.env.P1) {
+      console.log(checksumMap(map));
+    } else {
+      console.log(findOrbitalTransfers(map, "YOU", "SAN"));
+    }
   });
 }
