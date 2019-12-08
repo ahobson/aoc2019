@@ -1,11 +1,9 @@
 import {
   readlines,
   openFileStream,
-  inputPrompt,
-  buildReadable,
-  MemoryWritable
+  IntcodeIO,
+  MemoryIntcodeIO
 } from "../utils/io";
-import { Readable, Writable } from "stream";
 
 function initializeWorkingMemory(input: string): number[] {
   return input.split(",").map(i => parseInt(i, 10));
@@ -52,9 +50,8 @@ function parseInstruction(rawOp: number): Instruction {
 
 async function run(
   workingMemory: number[],
-  inr: Readable,
-  outw: Writable,
-  isTty: boolean
+  inIO: IntcodeIO,
+  outIO: IntcodeIO
 ): Promise<number[]> {
   let ptr = 0;
   let rawOp = workingMemory[ptr];
@@ -77,12 +74,9 @@ async function run(
         {
           // parameters that are written are always position mode
           const p1 = workingMemory[ptr + 1];
-          const line = await inputPrompt(
-            inr,
-            outw,
-            isTty ? "Opcode 3: reading input\n" : ""
-          );
-          if (line.trim().length === 0) {
+          outIO.prompt("Opcode 3: reading input: ");
+          const line = await inIO.read();
+          if (line.length === 0) {
             throw new Error("Opcode 3 read 0 length data");
           }
           workingMemory[p1] = parseInt(line.trim(), 10);
@@ -92,11 +86,8 @@ async function run(
       case 4:
         {
           const v1 = getParameterValue(workingMemory, instr.c, ptr + 1);
-          if (isTty) {
-            outw.write(`Opcode 4: ${v1}\n`);
-          } else {
-            outw.write(`${v1}\n`);
-          }
+          outIO.prompt("Opcode 4: ");
+          outIO.write(v1.toString());
           ptr += 2;
         }
         break;
@@ -141,11 +132,10 @@ async function run(
 
 export async function runProgram(
   input: string,
-  inr: Readable,
-  outw: Writable,
-  isTty: boolean
+  inIO: IntcodeIO,
+  outIO: IntcodeIO
 ): Promise<string> {
-  const memory = await run(initializeWorkingMemory(input), inr, outw, isTty);
+  const memory = await run(initializeWorkingMemory(input), inIO, outIO);
   return serializeMemory(memory);
 }
 
@@ -157,10 +147,16 @@ export async function runThruster(
     .split(",")
     .reduce(async (acc: Promise<string>, setting: string) => {
       const inputSignal = await acc;
-      const rin = buildReadable(setting, inputSignal);
-      const wout = new MemoryWritable();
-      await runProgram(program, rin, wout, false);
-      return Promise.resolve(wout.stringData()[0].trim());
+      const inIO = new MemoryIntcodeIO();
+      inIO.write(setting);
+      inIO.write(inputSignal);
+      const outIO = new MemoryIntcodeIO();
+      await runProgram(program, inIO, outIO);
+      const line = outIO.buffer().pop();
+      if (line) {
+        return Promise.resolve(line);
+      }
+      throw new Error("Empty outIO buffer");
     }, Promise.resolve("0"));
 }
 
@@ -212,22 +208,63 @@ async function findMaxThruster(program: string): Promise<string> {
   return maxThruster.toString();
 }
 
-async function findMaxFeedbackLoop(program: string): Promise<string> {
-  //const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
-  const phaseIterator = phaseSettingGenerator(["5", "6", "7", "8", "9"]);
-  let n = await phaseIterator.next();
-  let maxFeedback = 0;
-  while (n && !n.done) {
-    const phaseSetting: string = n.value;
-    const thrustString = await runThruster(program, phaseSetting);
-    const thrust = parseInt(thrustString, 10);
-    if (thrust > maxFeedback) {
-      maxFeedback = thrust;
-    }
-    n = await phaseIterator.next();
-  }
-  return maxFeedback.toString();
-}
+// async function runFeedbackLoop(
+//   program: string,
+//   phaseSetting: string
+// ): Promise<string> {
+//   const aPipe = new MemoryPipe();
+//   const bPipe = new MemoryPipe();
+//   const cPipe = new MemoryPipe();
+//   const dPipe = new MemoryPipe();
+//   const ePipe = new MemoryPipe();
+//   const phases = phaseSetting.split(",");
+//   if (phases.length != 5) {
+//     throw new Error("wrong phase length");
+//   }
+//   const [ia, ib, ic, id, ie] = phases;
+
+//   aPipe.addFakeLines("0", ia);
+//   bPipe.addFakeLines(ib);
+//   cPipe.addFakeLines(ic);
+//   dPipe.addFakeLines(id);
+//   ePipe.addFakeLines(ie);
+//   bPipe.pipe(aPipe);
+//   cPipe.pipe(bPipe);
+//   dPipe.pipe(cPipe);
+//   ePipe.pipe(dPipe);
+//   aPipe.pipe(ePipe);
+//   await Promise.all([
+//     runProgram(program, aPipe, bPipe, false),
+//     runProgram(program, bPipe, cPipe, false),
+//     runProgram(program, cPipe, dPipe, false),
+//     runProgram(program, dPipe, ePipe, false),
+//     runProgram(program, ePipe, aPipe, false)
+//   ]);
+//   console.log("aPipe.fakeLines", aPipe.fakeLines);
+//   console.log("ePipe.fakeLines", ePipe.fakeLines);
+//   const r = ePipe.fakeLines.shift();
+//   if (r === undefined) {
+//     throw new Error("Undefined last signal");
+//   }
+//   return r;
+// }
+
+// async function findMaxFeedbackLoop(program: string): Promise<string> {
+//   //const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
+//   const phaseIterator = phaseSettingGenerator(["5", "6", "7", "8", "9"]);
+//   let n = await phaseIterator.next();
+//   let maxFeedback = 0;
+//   while (n && !n.done) {
+//     const phaseSetting: string = n.value;
+//     const thrustString = await runFeedbackLoop(program, phaseSetting);
+//     const thrust = parseInt(thrustString, 10);
+//     if (thrust > maxFeedback) {
+//       maxFeedback = thrust;
+//     }
+//     n = await phaseIterator.next();
+//   }
+//   return maxFeedback.toString();
+// }
 
 if (require.main === module) {
   // argv[0] is ts-node
@@ -236,9 +273,9 @@ if (require.main === module) {
     .then(lines => {
       if (process.env.P1) {
         return findMaxThruster(lines[0]);
-      } else {
-        return findMaxFeedbackLoop(lines[0]);
-      }
+      } // else {
+      //   return findMaxFeedbackLoop(lines[0]);
+      // }
     })
     .then(maxThruster => {
       console.log("Max Thruster", maxThruster);

@@ -31,16 +31,26 @@ export function inputPrompt(
   outw: Writable,
   prompt: string
 ): Promise<string> {
-  const rl = readline.createInterface({
-    input: inr,
-    output: prompt === "" ? undefined : outw,
-    crlfDelay: Infinity
-  });
-  return new Promise(resolve => {
-    rl.question(prompt, answer => {
-      return resolve(answer);
+  if (inr === process.stdin) {
+    const rl = readline.createInterface({
+      input: inr,
+      output: prompt === "" ? undefined : outw,
+      crlfDelay: Infinity
     });
-  });
+    return new Promise(resolve => {
+      rl.question(prompt, answer => {
+        return resolve(answer);
+      });
+    });
+  }
+  if (prompt.length > 0) {
+    outw.write(prompt);
+  }
+  const line = inr.read();
+  if (line === undefined || line === null || line.length === 0) {
+    console.log("WARNING: Empty Read");
+  }
+  return line;
 }
 
 async function* generateLines(lines: string[]) {
@@ -82,35 +92,126 @@ export class MemoryWritable extends Writable {
   }
 }
 
-export class MemoryPipe extends Duplex {
-  lines: string[];
+export type MemoryPipeMode = "tty" | "fake";
 
-  constructor(options = {}) {
-    super(options);
-    this.lines = [];
+export class MemoryPipe extends Duplex {
+  mode: string;
+  fakeLines: string[];
+
+  constructor({ mode = "fake" }: { mode?: string } = {}) {
+    super({ objectMode: true, highWaterMark: 1 });
+    this.mode = mode;
+    if (this.mode === "fake") {
+      this.fakeLines = [];
+    }
   }
 
-  isPipe() {
-    return true;
+  addFakeLines(...data: string[]) {
+    for (let i = 0; i < data.length; i++) {
+      this.fakeLines.push(data[i] + "\n");
+    }
   }
 
   _write(
     chunk: any,
     _encoding: string,
     cb?: (error: Error | null | undefined) => void | undefined
-  ): boolean {
-    this.lines.push(chunk.toString());
+  ) {
+    if (this.mode === "tty") {
+      process.stdout.write(chunk);
+    } else {
+      this.fakeLines.push(chunk.toString());
+    }
     if (cb) {
       cb(undefined);
     }
-    return true;
   }
 
   _read(_size: number) {
-    if (this.lines.length > 0) {
-      this.push(this.lines.shift());
+    if (this.mode === "tty") {
+      this.push(process.stdin.read());
     } else {
-      throw new Error("Pipe has no data to read");
+      if (this.fakeLines.length > 0) {
+        this.push(this.fakeLines.shift());
+      } else {
+        this.push(null);
+      }
+    }
+  }
+}
+
+export abstract class IntcodeIO {
+  abstract async read(): Promise<string>;
+  abstract async prompt(line: string): Promise<void>;
+  abstract async write(line: string): Promise<void>;
+  abstract buffer(): string[];
+}
+
+export class MemoryIntcodeIO extends IntcodeIO {
+  lineBuffer: string[];
+
+  constructor() {
+    super();
+    this.lineBuffer = [];
+  }
+
+  async read(): Promise<string> {
+    const line = this.lineBuffer.shift();
+    if (line) {
+      return line;
+    }
+    throw new Error("Empty input");
+  }
+
+  async prompt(_line: string) {
+    // nothing
+  }
+
+  async write(line: string) {
+    this.lineBuffer.push(line);
+  }
+
+  buffer(): string[] {
+    return this.lineBuffer;
+  }
+}
+
+export class StdIntcodeIO extends IntcodeIO {
+  rl: readline.Interface;
+  lastLine: string;
+
+  constructor() {
+    super();
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: undefined,
+      crlfDelay: Infinity
+    });
+  }
+
+  read(): Promise<string> {
+    return new Promise(resolve => {
+      this.rl.question("", answer => {
+        this.lastLine = answer.trim();
+        return resolve(this.lastLine);
+      });
+    });
+  }
+
+  async write(data: string): Promise<void> {
+    this.lastLine = data.trim();
+    process.stdout.write(this.lastLine);
+  }
+
+  async prompt(line: string): Promise<void> {
+    process.stdout.write(line);
+  }
+
+  buffer(): string[] {
+    if (this.lastLine) {
+      return [this.lastLine];
+    } else {
+      return [];
     }
   }
 }

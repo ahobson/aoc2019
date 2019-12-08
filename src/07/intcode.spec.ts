@@ -1,21 +1,19 @@
-import { MemoryWritable, buildReadable } from "../utils/io";
+import { MemoryIntcodeIO } from "../utils/io";
 import { runProgram, runThruster } from "./intcode";
 
 describe("intcode", () => {
   it("should run program", async () => {
-    let rin = buildReadable("3", "0");
+    let inIO = new MemoryIntcodeIO();
+    inIO.write("3");
+    inIO.write("0");
 
-    let wout = new MemoryWritable();
+    let outIO = new MemoryIntcodeIO();
     await runProgram(
       "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0",
-      rin,
-      wout
+      inIO,
+      outIO
     );
-    expect(wout.stringData()).toStrictEqual([
-      "Opcode 3: reading input",
-      "Opcode 3: reading input",
-      "Opcode 4: 3"
-    ]);
+    expect(outIO.buffer()).toStrictEqual(["3"]);
   });
 
   it("should run thruster", async () => {
