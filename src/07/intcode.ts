@@ -57,6 +57,7 @@ async function run(
   let rawOp = workingMemory[ptr];
   let instr = parseInstruction(rawOp);
   while (instr.op != 99) {
+    console.log("instr", instr, "ptr", ptr);
     switch (instr.op) {
       case 1:
       case 2:
@@ -76,6 +77,7 @@ async function run(
           const p1 = workingMemory[ptr + 1];
           outIO.prompt("Opcode 3: reading input: ");
           const line = await inIO.read();
+          console.log("line", line);
           if (line.length === 0) {
             throw new Error("Opcode 3 read 0 length data");
           }
@@ -208,46 +210,42 @@ async function findMaxThruster(program: string): Promise<string> {
   return maxThruster.toString();
 }
 
-// async function runFeedbackLoop(
-//   program: string,
-//   phaseSetting: string
-// ): Promise<string> {
-//   const aPipe = new MemoryPipe();
-//   const bPipe = new MemoryPipe();
-//   const cPipe = new MemoryPipe();
-//   const dPipe = new MemoryPipe();
-//   const ePipe = new MemoryPipe();
-//   const phases = phaseSetting.split(",");
-//   if (phases.length != 5) {
-//     throw new Error("wrong phase length");
-//   }
-//   const [ia, ib, ic, id, ie] = phases;
+export async function runFeedbackLoop(
+  program: string,
+  phaseSetting: string
+): Promise<string> {
+  const eaPipe = new MemoryIntcodeIO();
+  const abPipe = new MemoryIntcodeIO();
+  const bcPipe = new MemoryIntcodeIO();
+  const cdPipe = new MemoryIntcodeIO();
+  const dePipe = new MemoryIntcodeIO();
 
-//   aPipe.addFakeLines("0", ia);
-//   bPipe.addFakeLines(ib);
-//   cPipe.addFakeLines(ic);
-//   dPipe.addFakeLines(id);
-//   ePipe.addFakeLines(ie);
-//   bPipe.pipe(aPipe);
-//   cPipe.pipe(bPipe);
-//   dPipe.pipe(cPipe);
-//   ePipe.pipe(dPipe);
-//   aPipe.pipe(ePipe);
-//   await Promise.all([
-//     runProgram(program, aPipe, bPipe, false),
-//     runProgram(program, bPipe, cPipe, false),
-//     runProgram(program, cPipe, dPipe, false),
-//     runProgram(program, dPipe, ePipe, false),
-//     runProgram(program, ePipe, aPipe, false)
-//   ]);
-//   console.log("aPipe.fakeLines", aPipe.fakeLines);
-//   console.log("ePipe.fakeLines", ePipe.fakeLines);
-//   const r = ePipe.fakeLines.shift();
-//   if (r === undefined) {
-//     throw new Error("Undefined last signal");
-//   }
-//   return r;
-// }
+  const phases = phaseSetting.split(",");
+  if (phases.length != 5) {
+    throw new Error("wrong phase length");
+  }
+  const [ia, ib, ic, id, ie] = phases;
+
+  eaPipe.write("0");
+  eaPipe.write(ia);
+  abPipe.write(ib);
+  bcPipe.write(ic);
+  cdPipe.write(id);
+  dePipe.write(ie);
+  await Promise.all([
+    runProgram(program, eaPipe, abPipe),
+    runProgram(program, abPipe, bcPipe),
+    runProgram(program, bcPipe, cdPipe),
+    runProgram(program, cdPipe, dePipe),
+    runProgram(program, dePipe, eaPipe)
+  ]);
+  console.log("eaPipe.buffer", eaPipe.buffer());
+  const r = eaPipe.buffer().pop();
+  if (r === undefined) {
+    throw new Error("Undefined last signal");
+  }
+  return r;
+}
 
 // async function findMaxFeedbackLoop(program: string): Promise<string> {
 //   //const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
