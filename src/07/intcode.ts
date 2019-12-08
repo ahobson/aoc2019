@@ -53,7 +53,8 @@ function parseInstruction(rawOp: number): Instruction {
 async function run(
   workingMemory: number[],
   inr: Readable,
-  outw: Writable
+  outw: Writable,
+  isTty: boolean
 ): Promise<number[]> {
   let ptr = 0;
   let rawOp = workingMemory[ptr];
@@ -79,8 +80,11 @@ async function run(
           const line = await inputPrompt(
             inr,
             outw,
-            "Opcode 3: reading input\n"
+            isTty ? "Opcode 3: reading input\n" : ""
           );
+          if (line.trim().length === 0) {
+            throw new Error("Opcode 3 read 0 length data");
+          }
           workingMemory[p1] = parseInt(line.trim(), 10);
           ptr += 2;
         }
@@ -88,7 +92,11 @@ async function run(
       case 4:
         {
           const v1 = getParameterValue(workingMemory, instr.c, ptr + 1);
-          outw.write(`Opcode 4: ${v1}\n`);
+          if (isTty) {
+            outw.write(`Opcode 4: ${v1}\n`);
+          } else {
+            outw.write(`${v1}\n`);
+          }
           ptr += 2;
         }
         break;
@@ -120,6 +128,7 @@ async function run(
         }
         break;
       case 99:
+        console.log("99");
         return workingMemory;
       default:
         throw Error(`Unknown op: ${instr.op}, rawOp: ${rawOp}, ptr: ${ptr}`);
@@ -133,9 +142,10 @@ async function run(
 export async function runProgram(
   input: string,
   inr: Readable,
-  outw: Writable
+  outw: Writable,
+  isTty: boolean
 ): Promise<string> {
-  const memory = await run(initializeWorkingMemory(input), inr, outw);
+  const memory = await run(initializeWorkingMemory(input), inr, outw, isTty);
   return serializeMemory(memory);
 }
 
@@ -149,20 +159,13 @@ export async function runThruster(
       const inputSignal = await acc;
       const rin = buildReadable(setting, inputSignal);
       const wout = new MemoryWritable();
-      await runProgram(program, rin, wout);
-      const outputPrefix = "Opcode 4: ";
-      const outputStr = wout.stringData().find(s => s.startsWith(outputPrefix));
-      if (outputStr === undefined) {
-        throw new Error(
-          `Cannot find outputPrefix '${outputPrefix}': ${wout.stringData()}`
-        );
-      }
-      return Promise.resolve(outputStr.slice(outputPrefix.length));
+      await runProgram(program, rin, wout, false);
+      return Promise.resolve(wout.stringData()[0].trim());
     }, Promise.resolve("0"));
 }
 
-async function* phaseSettingGenerator() {
-  const state = ["0", "1", "2", "3", "4"];
+async function* phaseSettingGenerator(initialState: string[]) {
+  const state = Object.assign([], initialState);
   // Heap's algorithm
   const c: number[] = [];
   for (let i = 0; i < state.length; i++) {
@@ -194,7 +197,7 @@ async function* phaseSettingGenerator() {
 }
 
 async function findMaxThruster(program: string): Promise<string> {
-  const phaseIterator = phaseSettingGenerator();
+  const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
   let n = await phaseIterator.next();
   let maxThruster = 0;
   while (n && !n.done) {
@@ -209,12 +212,33 @@ async function findMaxThruster(program: string): Promise<string> {
   return maxThruster.toString();
 }
 
+async function findMaxFeedbackLoop(program: string): Promise<string> {
+  //const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
+  const phaseIterator = phaseSettingGenerator(["5", "6", "7", "8", "9"]);
+  let n = await phaseIterator.next();
+  let maxFeedback = 0;
+  while (n && !n.done) {
+    const phaseSetting: string = n.value;
+    const thrustString = await runThruster(program, phaseSetting);
+    const thrust = parseInt(thrustString, 10);
+    if (thrust > maxFeedback) {
+      maxFeedback = thrust;
+    }
+    n = await phaseIterator.next();
+  }
+  return maxFeedback.toString();
+}
+
 if (require.main === module) {
   // argv[0] is ts-node
   // argv[1] is this_file
   readlines(openFileStream(process.argv[2]))
     .then(lines => {
-      return findMaxThruster(lines[0]);
+      if (process.env.P1) {
+        return findMaxThruster(lines[0]);
+      } else {
+        return findMaxFeedbackLoop(lines[0]);
+      }
     })
     .then(maxThruster => {
       console.log("Max Thruster", maxThruster);
