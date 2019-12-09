@@ -19,15 +19,6 @@ function getParameterPtr(
   parameterMode: number,
   parameter: number
 ): number {
-  console.log(
-    "gpv",
-    "rb",
-    relativeBase,
-    "pm",
-    parameterMode,
-    "param (aka ptr)",
-    parameter
-  );
   switch (parameterMode) {
     case 0:
       // position mode
@@ -54,23 +45,6 @@ function getParameterValue(
     relativeBase,
     parameterMode,
     parameter
-  );
-  console.log(
-    "gpv",
-    "rb",
-    relativeBase,
-    "pm",
-    parameterMode,
-    "param (aka ptr)",
-    parameter
-  );
-  console.log(
-    "wm[param]",
-    ptr,
-    "wm[[wm[param]]",
-    workingMemory[ptr],
-    "wm.len",
-    workingMemory.length
   );
   if (ptr > workingMemory.length) {
     return 0;
@@ -100,17 +74,11 @@ async function run(
   inIO: IntcodeIO,
   outIO: IntcodeIO
 ): Promise<number[]> {
-  let debug = true;
   let ptr = 0;
   let relativeBase = 0;
   let rawOp = workingMemory[ptr];
   let instr = parseInstruction(rawOp);
   while (instr.op != 99) {
-    debug = ptr < 52;
-    if (debug) {
-      console.log("instr", instr, "rbase", relativeBase, "ptr", ptr);
-      console.log("workingMemory", workingMemory);
-    }
     switch (instr.op) {
       case 1:
       case 2:
@@ -134,7 +102,6 @@ async function run(
             instr.a,
             ptr + 3
           );
-          console.log(`${instr.op}(${v1},${v2},${p3}) = ${r}`);
           workingMemory[p3] = r;
           ptr += 4;
         }
@@ -187,10 +154,8 @@ async function run(
             ptr + 2
           );
           if ((instr.op === 5 && v1 !== 0) || (instr.op === 6 && v1 === 0)) {
-            console.log(`${instr.op}(${v1},${v2}) = ${v2}`);
             ptr = v2;
           } else {
-            console.log(`${instr.op}(${v1},${v2}) = nil`);
             ptr += 3;
           }
         }
@@ -222,7 +187,6 @@ async function run(
           } else {
             workingMemory[p3] = 0;
           }
-          console.log(`${instr.op}(${v1},${v2},${p3}) = ${workingMemory[p3]}`);
           ptr += 4;
         }
         break;
@@ -234,9 +198,7 @@ async function run(
             instr.c,
             ptr + 1
           );
-          console.log("incrementing rbase", v1);
           relativeBase += v1;
-          console.log("rbase", relativeBase);
           ptr += 2;
         }
         break;
@@ -389,7 +351,11 @@ if (require.main === module) {
   // argv[1] is this_file
   const inIO = new MemoryIntcodeIO("in1");
   const outIO = new MemoryIntcodeIO("out1");
-  inIO.write("1");
+  if (process.env.P1) {
+    inIO.write("1");
+  } else {
+    inIO.write("2");
+  }
   readlines(openFileStream(process.argv[2]))
     .then(lines => runProgram(lines[0], inIO, outIO))
     .then(wm =>
