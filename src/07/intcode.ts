@@ -252,9 +252,7 @@ async function findMaxFeedbackLoop(program: string): Promise<string> {
   let maxFeedback = 0;
   while (n && !n.done) {
     const phaseSetting: string = n.value;
-    console.log("running ps", phaseSetting);
     const thrustString = await runFeedbackLoop(program, phaseSetting);
-    console.log("ts", thrustString);
     const thrust = parseInt(thrustString, 10);
     if (thrust > maxFeedback) {
       maxFeedback = thrust;
