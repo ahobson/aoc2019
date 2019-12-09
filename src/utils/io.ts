@@ -145,34 +145,79 @@ export abstract class IntcodeIO {
   abstract async prompt(line: string): Promise<void>;
   abstract async write(line: string): Promise<void>;
   abstract buffer(): string[];
+  abstract close(): void;
+  abstract isOpen(): boolean;
+  abstract id(): string;
 }
 
 export class MemoryIntcodeIO extends IntcodeIO {
+  idProp: string;
   lineBuffer: string[];
+  open: boolean;
 
-  constructor() {
+  constructor(id: string) {
     super();
+    this.idProp = id;
     this.lineBuffer = [];
+    this.open = true;
   }
 
   async read(): Promise<string> {
-    const line = this.lineBuffer.shift();
+    if (!this.open) {
+      throw new Error(`Closed: ${this.idProp}`);
+    }
+    let line = this.lineBuffer.shift();
+    console.log("read line", this.idProp, line);
     if (line) {
       return line;
     }
-    throw new Error("Empty input");
+    let c = 0;
+    while (!line && this.open && c < 20) {
+      console.log(`waiting for input: ${this.idProp}`);
+      setTimeout(() => {
+        line = this.lineBuffer.shift();
+      }, 1000);
+      c += 1;
+    }
+    if (line) {
+      return line;
+    }
+    line = this.lineBuffer.shift();
+    if (line) {
+      return line;
+    }
+    throw new Error(`Empty input: ${this.idProp}`);
   }
 
   async prompt(_line: string) {
-    // nothing
+    if (!this.open) {
+      throw new Error(`Closed: ${this.id}`);
+    }
   }
 
   async write(line: string) {
+    console.log("write line", this.idProp, line);
+    if (!this.open) {
+      throw new Error(`Closed: ${this.idProp}`);
+    }
     this.lineBuffer.push(line);
   }
 
   buffer(): string[] {
     return this.lineBuffer;
+  }
+
+  close() {
+    console.log("close", this.idProp);
+    this.open = false;
+  }
+
+  isOpen(): boolean {
+    return this.open;
+  }
+
+  id(): string {
+    return this.idProp;
   }
 }
 
@@ -213,5 +258,17 @@ export class StdIntcodeIO extends IntcodeIO {
     } else {
       return [];
     }
+  }
+
+  close() {
+    this.rl.close();
+  }
+
+  isOpen() {
+    return true;
+  }
+
+  id() {
+    return "std";
   }
 }

@@ -4,11 +4,11 @@ import { runProgram, runThruster, runFeedbackLoop } from "./intcode";
 describe("intcode", () => {
   if (false) {
     it("should run program", async () => {
-      let inIO = new MemoryIntcodeIO();
+      let inIO = new MemoryIntcodeIO("in1");
       inIO.write("3");
       inIO.write("0");
 
-      let outIO = new MemoryIntcodeIO();
+      let outIO = new MemoryIntcodeIO("out1");
       await runProgram(
         "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0",
         inIO,

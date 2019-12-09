@@ -57,7 +57,7 @@ async function run(
   let rawOp = workingMemory[ptr];
   let instr = parseInstruction(rawOp);
   while (instr.op != 99) {
-    console.log("instr", instr, "ptr", ptr);
+    console.log("instr", inIO.id(), instr);
     switch (instr.op) {
       case 1:
       case 2:
@@ -77,7 +77,6 @@ async function run(
           const p1 = workingMemory[ptr + 1];
           outIO.prompt("Opcode 3: reading input: ");
           const line = await inIO.read();
-          console.log("line", line);
           if (line.length === 0) {
             throw new Error("Opcode 3 read 0 length data");
           }
@@ -121,7 +120,8 @@ async function run(
         }
         break;
       case 99:
-        console.log("99");
+        inIO.close();
+        outIO.close();
         return workingMemory;
       default:
         throw Error(`Unknown op: ${instr.op}, rawOp: ${rawOp}, ptr: ${ptr}`);
@@ -149,10 +149,10 @@ export async function runThruster(
     .split(",")
     .reduce(async (acc: Promise<string>, setting: string) => {
       const inputSignal = await acc;
-      const inIO = new MemoryIntcodeIO();
+      const inIO = new MemoryIntcodeIO("thrusterIn");
       inIO.write(setting);
       inIO.write(inputSignal);
-      const outIO = new MemoryIntcodeIO();
+      const outIO = new MemoryIntcodeIO("thrusterOut");
       await runProgram(program, inIO, outIO);
       const line = outIO.buffer().pop();
       if (line) {
@@ -214,11 +214,11 @@ export async function runFeedbackLoop(
   program: string,
   phaseSetting: string
 ): Promise<string> {
-  const eaPipe = new MemoryIntcodeIO();
-  const abPipe = new MemoryIntcodeIO();
-  const bcPipe = new MemoryIntcodeIO();
-  const cdPipe = new MemoryIntcodeIO();
-  const dePipe = new MemoryIntcodeIO();
+  const eaPipe = new MemoryIntcodeIO("ea");
+  const abPipe = new MemoryIntcodeIO("ab");
+  const bcPipe = new MemoryIntcodeIO("bc");
+  const cdPipe = new MemoryIntcodeIO("cd");
+  const dePipe = new MemoryIntcodeIO("de");
 
   const phases = phaseSetting.split(",");
   if (phases.length != 5) {
@@ -226,12 +226,13 @@ export async function runFeedbackLoop(
   }
   const [ia, ib, ic, id, ie] = phases;
 
-  eaPipe.write("0");
-  eaPipe.write(ia);
-  abPipe.write(ib);
-  bcPipe.write(ic);
-  cdPipe.write(id);
-  dePipe.write(ie);
+  abPipe.write("0");
+  abPipe.write(ia);
+  bcPipe.write(ib);
+  cdPipe.write(ic);
+  dePipe.write(id);
+  eaPipe.write(ie);
+
   await Promise.all([
     runProgram(program, eaPipe, abPipe),
     runProgram(program, abPipe, bcPipe),
