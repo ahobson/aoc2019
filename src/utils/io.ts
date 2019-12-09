@@ -167,16 +167,13 @@ export class MemoryIntcodeIO extends IntcodeIO {
       throw new Error(`Closed: ${this.idProp}`);
     }
     let line = this.lineBuffer.shift();
-    console.log("read line", this.idProp, line);
     if (line) {
       return line;
     }
     let c = 0;
     while (!line && this.open && c < 20) {
-      console.log(`waiting for input: ${this.idProp}`);
-      setTimeout(() => {
-        line = this.lineBuffer.shift();
-      }, 1000);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      line = this.lineBuffer.shift();
       c += 1;
     }
     if (line) {
@@ -196,7 +193,6 @@ export class MemoryIntcodeIO extends IntcodeIO {
   }
 
   async write(line: string) {
-    console.log("write line", this.idProp, line);
     if (!this.open) {
       throw new Error(`Closed: ${this.idProp}`);
     }
@@ -208,7 +204,6 @@ export class MemoryIntcodeIO extends IntcodeIO {
   }
 
   close() {
-    console.log("close", this.idProp);
     this.open = false;
   }
 

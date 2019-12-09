@@ -57,7 +57,6 @@ async function run(
   let rawOp = workingMemory[ptr];
   let instr = parseInstruction(rawOp);
   while (instr.op != 99) {
-    console.log("instr", inIO.id(), instr);
     switch (instr.op) {
       case 1:
       case 2:
@@ -226,12 +225,12 @@ export async function runFeedbackLoop(
   }
   const [ia, ib, ic, id, ie] = phases;
 
-  abPipe.write("0");
   abPipe.write(ia);
   bcPipe.write(ib);
   cdPipe.write(ic);
   dePipe.write(id);
   eaPipe.write(ie);
+  abPipe.write("0");
 
   await Promise.all([
     runProgram(program, eaPipe, abPipe),
@@ -240,30 +239,30 @@ export async function runFeedbackLoop(
     runProgram(program, cdPipe, dePipe),
     runProgram(program, dePipe, eaPipe)
   ]);
-  console.log("eaPipe.buffer", eaPipe.buffer());
-  const r = eaPipe.buffer().pop();
+  const r = abPipe.buffer().pop();
   if (r === undefined) {
     throw new Error("Undefined last signal");
   }
   return r;
 }
 
-// async function findMaxFeedbackLoop(program: string): Promise<string> {
-//   //const phaseIterator = phaseSettingGenerator(["0", "1", "2", "3", "4"]);
-//   const phaseIterator = phaseSettingGenerator(["5", "6", "7", "8", "9"]);
-//   let n = await phaseIterator.next();
-//   let maxFeedback = 0;
-//   while (n && !n.done) {
-//     const phaseSetting: string = n.value;
-//     const thrustString = await runFeedbackLoop(program, phaseSetting);
-//     const thrust = parseInt(thrustString, 10);
-//     if (thrust > maxFeedback) {
-//       maxFeedback = thrust;
-//     }
-//     n = await phaseIterator.next();
-//   }
-//   return maxFeedback.toString();
-// }
+async function findMaxFeedbackLoop(program: string): Promise<string> {
+  const phaseIterator = phaseSettingGenerator(["5", "6", "7", "8", "9"]);
+  let n = await phaseIterator.next();
+  let maxFeedback = 0;
+  while (n && !n.done) {
+    const phaseSetting: string = n.value;
+    console.log("running ps", phaseSetting);
+    const thrustString = await runFeedbackLoop(program, phaseSetting);
+    console.log("ts", thrustString);
+    const thrust = parseInt(thrustString, 10);
+    if (thrust > maxFeedback) {
+      maxFeedback = thrust;
+    }
+    n = await phaseIterator.next();
+  }
+  return maxFeedback.toString();
+}
 
 if (require.main === module) {
   // argv[0] is ts-node
@@ -272,9 +271,9 @@ if (require.main === module) {
     .then(lines => {
       if (process.env.P1) {
         return findMaxThruster(lines[0]);
-      } // else {
-      //   return findMaxFeedbackLoop(lines[0]);
-      // }
+      } else {
+        return findMaxFeedbackLoop(lines[0]);
+      }
     })
     .then(maxThruster => {
       console.log("Max Thruster", maxThruster);
