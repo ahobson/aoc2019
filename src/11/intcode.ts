@@ -376,6 +376,7 @@ export class HullPaintingRobotIntcodeIO extends IntcodeIO {
       }
     }
     this.position = initialPosition;
+    this.hull[this.position.x][this.position.y] = 1;
     this.facing = "up";
     this.open = true;
     this.state = "painting";
@@ -523,9 +524,15 @@ export class HullPaintingRobotIntcodeIO extends IntcodeIO {
 if (require.main === module) {
   // argv[0] is ts-node
   // argv[1] is this_file
-  const robot = new HullPaintingRobotIntcodeIO();
+  const robot = new HullPaintingRobotIntcodeIO({
+    size: 80,
+    initialPosition: { x: 10, y: 30 }
+  });
   readlines(process.stdin)
     .then(lines => runProgram(lines[0], robot, robot))
-    .then(_wm => console.log("done", robot.paintedCount))
+    .then(_wm => {
+      console.log("done");
+      process.stdout.write(robot.buffer().join("\n"));
+    })
     .catch(err => console.log("Error", err));
 }
