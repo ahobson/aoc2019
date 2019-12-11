@@ -1,4 +1,4 @@
-import { findMaxDetected, Slope, SlopeSet } from "./asteroid";
+import { findMaxDetected, findNthDestroyed, Slope, SlopeSet } from "./asteroid";
 
 describe("asteroid", () => {
   it("slopes are equal", () => {
@@ -87,5 +87,25 @@ describe("asteroid", () => {
     ];
     aMap = findMaxDetected(lines);
     expect(aMap.maxPoint).toEqual({ point: { x: 11, y: 13 }, count: 210 });
+  });
+  it("finds destroyed order", () => {
+    const aMap = findMaxDetected([
+      ".#....#####...#..",
+      "##...##.#####..##",
+      "##...#...#.#####.",
+      "..#.....#...###..",
+      "..#.#.....#....##"
+    ]);
+    expect(aMap.maxPoint.point).toEqual({ x: 8, y: 3 });
+    let p = findNthDestroyed(aMap, 1);
+    expect(p.point).toEqual({ x: 8, y: 1 });
+    p = findNthDestroyed(aMap, 9);
+    expect(p.point).toEqual({ x: 15, y: 1 });
+    p = findNthDestroyed(aMap, 10);
+    expect(p.point).toEqual({ x: 12, y: 2 });
+    p = findNthDestroyed(aMap, 18);
+    expect(p.point).toEqual({ x: 4, y: 4 });
+    p = findNthDestroyed(aMap, 19);
+    expect(p.point).toEqual({ x: 2, y: 4 });
   });
 });

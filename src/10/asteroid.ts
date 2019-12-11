@@ -90,26 +90,20 @@ export class SlopeSet {
     return this.slopes.length;
   }
 
-  toString() {
+  toObject() {
     return {
       slopeCount: this.slopes.length,
       dupeSlopeCount: this.dupeSlopes.length,
       slopes: this.slopes.map(s => JSON.stringify(s)),
       dupeSlopes: this.dupeSlopes.map(s => JSON.stringify(s))
     };
-    //   ("slopes[" +
-    //   this.slopes.map(s => JSON.stringify(s)).join(",") +
-    //   "]" +
-    //   "dupeSlopes[" +
-    //   this.dupeSlopes.map(s => JSON.stringify(s)).join(",") +
-    //   "]"
-    // );
   }
 }
 
 interface MapDataPoint {
   point: MapPoint;
   isAsteroid: boolean;
+  s: string;
   asteroidsOnSlope: SlopeSet;
 }
 
@@ -139,6 +133,7 @@ class AsteroidMap {
           this.data[x][y] = {
             point: { x: x, y: y },
             isAsteroid: lines[y][x] === "#",
+            s: lines[y][x],
             asteroidsOnSlope: new SlopeSet()
           };
         }
@@ -179,10 +174,89 @@ export function findMaxDetected(lines: string[]): AsteroidMap {
   return aMap;
 }
 
+interface CartesianAndTheta {
+  point: MapPoint;
+  theta: number;
+}
+
+function calculateCustomTheta(x: number, y: number): number {
+  // * convert cartesian to polar coordinates
+  // * Math.atan returns radians, convert to degrees for easier
+  //   debugging
+  let t = (Math.atan(y / x) * 180) / Math.PI;
+  if (x >= 0 && y >= 0) {
+    // quadrant 1
+    return t;
+  } else if (x < 0 && y >= 0) {
+    // quadrant 2
+    return t + 180;
+  } else if (x < 0 && y < 0) {
+    // quadrant 3
+    return t + 180;
+  } else if (x >= 0 && y < 0) {
+    // quadrant 4
+    return t;
+  } else {
+    throw new Error(`Unknown quadrant: ${x}, ${y}`);
+  }
+}
+
+export function findNthDestroyed(
+  aMap: AsteroidMap,
+  n: number
+): CartesianAndTheta {
+  const maxPointData = aMap.data[aMap.maxPoint.point.x][aMap.maxPoint.point.y];
+  if (maxPointData === undefined) {
+    throw new Error("undefined max point data");
+  }
+  const slopes = maxPointData.asteroidsOnSlope.slopes;
+  if (slopes.length < n) {
+    throw new Error(`slopes are length ${slopes.length}, but n is ${n}`);
+  }
+  const points: CartesianAndTheta[] = slopes
+    .map(snp => {
+      return {
+        point: {
+          x: snp.point.x,
+          y: snp.point.y
+        },
+        theta: calculateCustomTheta(snp.slope.run, snp.slope.rise)
+      };
+    })
+    .sort((a, b) => a.theta - b.theta);
+
+  // for (let i = 0; i < points.length; i++) {
+  //   const p = points[i].point;
+  //   aMap.data[p.x][p.y].s = String.fromCharCode(65 + i);
+  // }
+  // aMap.data[maxPointData.point.x][maxPointData.point.y].s = "*";
+
+  // for (let j = 0; j < aMap.height; j++) {
+  //   for (let i = 0; i < aMap.width; i++) {
+  //     process.stdout.write(aMap.data[i][j].s);
+  //   }
+  //   process.stdout.write("\n");
+  // }
+
+  // console.log("points", points);
+  return points[n - 1];
+}
+
 if (require.main === module) {
   // argv[0] is ts-node
   // argv[1] is this_file
-  readlines(process.stdin)
-    .then(lines => findMaxDetected(lines.map(l => l.trim())))
-    .then(m => console.log(m.maxPoint));
+  if (process.env.P1) {
+    readlines(process.stdin)
+      .then(lines => findMaxDetected(lines.map(l => l.trim())))
+      .then(m => console.log(m.maxPoint));
+  } else {
+    readlines(process.stdin)
+      .then(lines => findMaxDetected(lines.map(l => l.trim())))
+      .then(aMap => {
+        console.log(aMap.maxPoint);
+        return findNthDestroyed(aMap, 200);
+      })
+      .then(n => console.log(n))
+      .catch(e => console.log(e));
+  }
 }
