@@ -546,6 +546,7 @@ export class ArcadeIntcodeIO extends IntcodeIO {
   score: number;
   paddle_x: number;
   ball_x: number;
+  frames: string[];
 
   constructor(
     { size }: { size: number } = {
@@ -564,6 +565,7 @@ export class ArcadeIntcodeIO extends IntcodeIO {
     this.state = "x";
     this.open = true;
     this.score = 0;
+    this.frames = [];
   }
 
   async read(): Promise<string> {
@@ -614,6 +616,9 @@ export class ArcadeIntcodeIO extends IntcodeIO {
             this.screen[this.coord_x][this.coord_y] = tile;
           }
           this.state = "x";
+          if (this.ball_x && this.paddle_x) {
+            this.frames.push(this.buffer().join("\n"));
+          }
           break;
         default:
           reject(`Unknown state: ${this.state}`);
@@ -696,9 +701,14 @@ if (require.main === module) {
         return run(memory, arcade, arcade);
       })
       .then(_wm => {
-        const screen = arcade.buffer().join("\n");
-        process.stdout.write(screen);
-        process.stdout.write("\n");
+        (async function() {
+          for (let i = 0; i < arcade.frames.length; i++) {
+            await new Promise(resolve => setTimeout(resolve, 5));
+            process.stdout.write("\x1b[2J");
+            process.stdout.write(arcade.frames[i]);
+            process.stdout.write("\n");
+          }
+        })();
       })
       .catch(err => console.log("Error", err));
   }
