@@ -90,10 +90,13 @@ function applyVelocity(mmap: MoonMap): MoonMap {
   return mmap;
 }
 
+export function nextStep(mmap: MoonMap): MoonMap {
+  return applyVelocity(applyGravity(mmap));
+}
+
 export function simulate(mmap: MoonMap, steps: number): MoonMap {
   for (let i = 0; i < steps; i++) {
-    mmap = applyGravity(mmap);
-    mmap = applyVelocity(mmap);
+    mmap = nextStep(mmap);
   }
   return mmap;
 }
@@ -112,9 +115,50 @@ export function totalEnergy(mmap: MoonMap): number {
     .reduce((acc, cur) => acc + cur);
 }
 
+export function moonToString(moon: Moon): string {
+  return (
+    `(${moon.position.x},${moon.position.y},${moon.position.z})` +
+    `->(${moon.velocity.dx},${moon.velocity.dy},${moon.velocity.dz})`
+  );
+}
+
+// function moonMapToString(mmap: MoonMap): string {
+//   return mmap.moons.map(moon => moonToString(moon)).join("/");
+// }
+
+interface MoonHistory {
+  [key: string]: number;
+}
+
+export function findPreviousState(mmap: MoonMap): number {
+  let pmaps: MoonHistory[] = new Array<MoonHistory>(mmap.moons.length);
+  for (let mi = 0; mi < mmap.moons.length; mi++) {
+    pmaps[mi] = {};
+  }
+  let cmap = JSON.parse(JSON.stringify(mmap));
+  for (let i = 0; i < 50000000; i++) {
+    for (let mi = 1; mi < 2; mi++) {
+      const k = moonToString(cmap.moons[mi]);
+      if (pmaps[mi][k] !== undefined) {
+        const period = i - pmaps[mi][k];
+        console.log(`moon ${mi} period ${period} step ${i}`);
+      }
+      pmaps[mi][k] = i;
+    }
+    cmap = nextStep(cmap);
+  }
+  return -1;
+}
+
 if (require.main === module) {
-  readlines(process.stdin)
-    .then(lines => scanMoons(lines))
-    .then(mmap => simulate(mmap, 1000))
-    .then(mmap => console.log(totalEnergy(mmap)));
+  if (process.env.P1) {
+    readlines(process.stdin)
+      .then(lines => scanMoons(lines))
+      .then(mmap => simulate(mmap, 1000))
+      .then(mmap => console.log(totalEnergy(mmap)));
+  } else {
+    readlines(process.stdin)
+      .then(lines => scanMoons(lines))
+      .then(mmap => console.log(findPreviousState(mmap)));
+  }
 }

@@ -1,4 +1,4 @@
-import { scanMoons, simulate, totalEnergy } from "./nbody";
+import { scanMoons, simulate, totalEnergy, findAllCenters } from "./nbody";
 
 describe("nbody", () => {
   it("scans", () => {
@@ -154,5 +154,16 @@ describe("nbody", () => {
     });
 
     expect(totalEnergy(mmap)).toEqual(179);
+  });
+
+  it("finds center", () => {
+    const mmap = scanMoons([
+      "<x=-1, y=0, z=2>",
+      "<x=2, y=-10, z=-7>",
+      "<x=4, y=-8, z=8>",
+      "<x=3, y=5, z=-1>"
+    ]);
+    const centers = findAllCenters(mmap);
+    console.log("centers", centers);
   });
 });
