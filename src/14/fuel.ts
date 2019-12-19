@@ -40,12 +40,12 @@ export function parseReactions(lines: string[]): ReactionRecipe {
   return recipe;
 }
 
-export function findMinimumInput(
+export function findMinimumInputInventory(
   recipe: ReactionRecipe,
   inputName: string,
   count: number,
   outputName: string
-): number {
+): [number, ReactionInventory] {
   let inputCount = 0;
   const inventory: ReactionInventory = {};
 
@@ -112,37 +112,53 @@ export function findMinimumInput(
     }
   }
 
-  return inputCount;
+  return [inputCount, inventory];
 }
 
-export function findMaximumOutput(
+export function findMinimumInput(
+  recipe: ReactionRecipe,
+  inputName: string,
+  count: number,
+  outputName: string
+): number {
+  return findMinimumInputInventory(recipe, inputName, count, outputName)[0];
+}
+
+export function findMaximumOutputInventory(
   recipe: ReactionRecipe,
   inputCount: number,
   inputName: string,
-  outputName: string
-): number {
-  const inventory: ReactionInventory = {};
+  outputName: string,
+  inventory: ReactionInventory = {}
+): ReactionInventory {
+  Object.keys(recipe).forEach(name => {
+    if (inventory[name] === undefined) {
+      inventory[name] = { name: name, quantity: 0 };
+    }
+  });
+  if (inventory[inputName] === undefined) {
+    inventory[inputName] = { name: inputName, quantity: inputCount };
+  }
+  inventory[outputName] = { name: outputName, quantity: 0 };
 
-  Object.keys(recipe).forEach(
-    name => (inventory[name] = { name: name, quantity: 0 })
-  );
-  inventory[inputName] = { name: inputName, quantity: inputCount };
-
+  //  console.log("inventory", inventory);
   const pending: ReactionIngredient[] = [];
   pending.push({ name: outputName, quantity: 1 });
 
   let inventoryAvailable = true;
+  let outputCount = 0;
 
   // console.log("recipe", recipe);
 
   while (inventoryAvailable) {
     // console.log("pending", pending);
     // console.log("inventory", inventory);
-    // console.log("inputCount", inputCount);
     let ingredient = pending.shift();
     if (ingredient === undefined) {
-      console.log("Empty pending ingredient");
+      //console.log("Empty pending ingredient");
       ingredient = { name: outputName, quantity: 1 };
+      outputCount += recipe[outputName].ingredient.quantity;
+      inventory[outputName].quantity = 0;
     }
 
     const missingDeps: ReactionIngredient[] = [];
@@ -150,13 +166,8 @@ export function findMaximumOutput(
       inventoryAvailable &&
       inventory[ingredient.name].quantity < ingredient.quantity
     ) {
-      if (recipe[ingredient.name] === undefined) {
-        // console.log("ingredient", ingredient, "inputName", inputName);
-        if (ingredient.name === inputName) {
-          inventoryAvailable = false;
-        } else {
-          throw new Error(`Missing recipe for ingredient: ${ingredient.name}`);
-        }
+      if (ingredient.name === inputName) {
+        inventoryAvailable = false;
       } else {
         recipe[ingredient.name].dependencies.forEach(dep => {
           if (inventory[dep.name].quantity < dep.quantity) {
@@ -166,7 +177,7 @@ export function findMaximumOutput(
       }
     }
 
-    if (inventoryAvailable && missingDeps.length > 0) {
+    if (missingDeps.length > 0) {
       pending.unshift(ingredient);
       pending.unshift(...missingDeps);
     } else {
@@ -191,7 +202,61 @@ export function findMaximumOutput(
     }
   }
 
-  return inventory[outputName].quantity;
+  inventory[outputName].quantity = outputCount;
+  return inventory;
+}
+
+// OMFG this is a hack
+export function findMaximumOutput(
+  recipe: ReactionRecipe,
+  inputCount: number,
+  inputName: string,
+  outputName: string,
+  scale: number = 10000,
+  reserve: number = 100000
+): number {
+  const multRecipe: ReactionRecipe = JSON.parse(JSON.stringify(recipe));
+
+  let multOutput = 0;
+  let multInventory: ReactionInventory = {};
+
+  if (inputCount > scale) {
+    Object.keys(multRecipe).forEach(name => {
+      multRecipe[name].ingredient.quantity *= scale;
+      multRecipe[name].dependencies.forEach(dep => {
+        dep.quantity *= scale;
+      });
+    });
+
+    // console.log("mult recipe", JSON.stringify(multRecipe, null, 2));
+    const reserveOre =
+      reserve > inputCount ? Math.floor(inputCount / 2) : reserve;
+
+    multInventory = findMaximumOutputInventory(
+      multRecipe,
+      inputCount - reserveOre,
+      inputName,
+      outputName
+    );
+
+    multOutput = multInventory[outputName].quantity;
+    // console.log("mult inventory input q1", multInventory[inputName].quantity);
+    multInventory[inputName].quantity += reserveOre;
+    // console.log("mult inventory input post q1", multInventory);
+  }
+
+  // console.log("mult inventory input", multInventory);
+  const inventory = findMaximumOutputInventory(
+    recipe,
+    inputCount,
+    inputName,
+    outputName,
+    multInventory
+  );
+
+  console.log("mult inventory", multInventory);
+  console.log("final inventory", inventory);
+  return inventory[outputName].quantity + multOutput;
 }
 
 if (require.main === module) {
