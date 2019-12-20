@@ -134,7 +134,7 @@ describe("fuel", () => {
       "5 BHXH, 4 VRPVC => 5 LTCX"
     ]);
     expect(
-      findMaximumOutput(recipe5, 1000000000000, "ORE", "FUEL", 1000, 300000000)
+      findMaximumOutput(recipe5, 1000000000000, "ORE", "FUEL", 1000, 2000000000)
     ).toEqual(460664);
   });
 });

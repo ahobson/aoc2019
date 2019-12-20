@@ -124,6 +124,9 @@ export function findMinimumInput(
   return findMinimumInputInventory(recipe, inputName, count, outputName)[0];
 }
 
+//
+// SHAME: I AM ASHAMED
+//
 export function findMaximumOutputInventory(
   recipe: ReactionRecipe,
   inputCount: number,
@@ -206,7 +209,10 @@ export function findMaximumOutputInventory(
   return inventory;
 }
 
+//
+// SHAME: I AM ASHAMED
 // OMFG this is a hack
+//
 export function findMaximumOutput(
   recipe: ReactionRecipe,
   inputCount: number,
@@ -254,8 +260,8 @@ export function findMaximumOutput(
     multInventory
   );
 
-  console.log("mult inventory", multInventory);
-  console.log("final inventory", inventory);
+  // console.log("mult inventory", multInventory);
+  // console.log("final inventory", inventory);
   return inventory[outputName].quantity + multOutput;
 }
 
@@ -269,7 +275,16 @@ if (require.main === module) {
   } else {
     readlines(process.stdin)
       .then(lines => parseReactions(lines))
-      .then(recipe => findMaximumOutput(recipe, 1000000000000, "ORE", "FUEL"))
+      .then(recipe =>
+        findMaximumOutput(
+          recipe,
+          1000000000000,
+          "ORE",
+          "FUEL",
+          1000,
+          2000000000
+        )
+      )
       .then(fuel => console.log("FUEL", fuel))
       .catch(err => console.log("Error", err));
   }
