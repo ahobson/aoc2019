@@ -715,7 +715,9 @@ export type RepairDroidPosition = {
 export class RepairDroidIntcodeIO extends IntcodeIO {
   size: number;
   screen: OxygenTankTile[][];
+  initialPosition: RepairDroidPosition;
   position: RepairDroidPosition;
+  lastPosition: RepairDroidPosition;
   direction: RepairDroidDirection;
   open: boolean;
 
@@ -724,8 +726,8 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
       size,
       initialPosition
     }: { size: number; initialPosition: RepairDroidPosition } = {
-      size: 80,
-      initialPosition: { x: 39, y: 39 }
+      size: 50,
+      initialPosition: { x: 25, y: 25 }
     }
   ) {
     super();
@@ -738,6 +740,8 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         this.screen[x][y] = OxygenTankTile.Unknown;
       }
     }
+    this.initialPosition = initialPosition;
+    this.lastPosition = initialPosition;
     this.screen[initialPosition.x][initialPosition.y] = OxygenTankTile.Empty;
     this.open = true;
     this.position = initialPosition;
@@ -762,8 +766,10 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         (allDirections.indexOf(this.direction) + 3) % allDirections.length
       ];
     const rightPosition = this.directionPosition(rightDirection);
+    const leftPosition = this.directionPosition(leftDirection);
     const frontTile = this.screen[frontPosition.x][frontPosition.y];
     const rightTile = this.screen[rightPosition.x][rightPosition.y];
+    const leftTile = this.screen[leftPosition.x][leftPosition.y];
     process.stdout.write(
       `newDirection, this.direction:${
         RepairDroidDirection[this.direction]
@@ -778,34 +784,33 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
       return this.direction;
     }
     if (
-      (rightTile === OxygenTankTile.Unknown ||
-        rightTile === OxygenTankTile.Empty) &&
-      (frontTile === OxygenTankTile.Unknown ||
-        frontTile === OxygenTankTile.Empty)
-    ) {
-      // we want to keep the wall on our right, so find it again
-      return rightDirection;
-    }
-    if (
-      (rightTile === OxygenTankTile.Unknown ||
-        rightTile === OxygenTankTile.Empty) &&
-      frontTile === OxygenTankTile.Wall
-    ) {
-      // we want to keep the wall on our right, so find it again
-      return rightDirection;
-    }
-    if (
       rightTile === OxygenTankTile.Wall &&
       frontTile === OxygenTankTile.Wall
     ) {
       // keep the wall on our right
       return leftDirection;
     }
-    throw new Error(
-      `Unhandled state: (${this.position.x},${this.position.y}) ${
+    if (
+      rightTile === OxygenTankTile.Empty &&
+      frontTile === OxygenTankTile.Wall &&
+      leftTile === OxygenTankTile.Unknown
+    ) {
+      // keep the wall on our right
+      return leftDirection;
+    }
+    process.stdout.write(
+      `newDirection, this.direction:${
         RepairDroidDirection[this.direction]
-      } right:${OxygenTankTile[rightTile]} front:${OxygenTankTile[frontTile]}`
+      } rightPosition:${JSON.stringify(
+        rightPosition
+      )}, lastPosition:${JSON.stringify(this.lastPosition)}\n`
     );
+    if (rightPosition === this.lastPosition) {
+      // don't immediately backtrack
+      return leftDirection;
+    }
+    // we want to keep the wall on our right, so find it again
+    return rightDirection;
   }
 
   async read(): Promise<string> {
@@ -853,10 +858,15 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
           this.screen[wposition.x][wposition.y] = OxygenTankTile.Wall;
           break;
         case RepairDroidResponse.Moving:
+          this.lastPosition = this.position;
           this.position = this.directionPosition();
+          if (this.position === this.initialPosition) {
+            process.stdout.write(`WARNING: revisited initial position\n`);
+          }
           this.screen[this.position.x][this.position.y] = OxygenTankTile.Empty;
           break;
         case RepairDroidResponse.FoundOxygenSystem:
+          this.lastPosition = this.position;
           this.position = this.directionPosition();
           this.screen[this.position.x][this.position.y] =
             OxygenTankTile.OxygenSystem;
