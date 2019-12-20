@@ -683,7 +683,8 @@ enum OxygenTankTile {
   Unknown = 0,
   Empty = 1,
   Wall = 2,
-  OxygenSystem = 3
+  OxygenSystem = 3,
+  Droid = 4
 }
 
 enum OxygenTankTileGlyph {
@@ -770,13 +771,13 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
     const frontTile = this.screen[frontPosition.x][frontPosition.y];
     const rightTile = this.screen[rightPosition.x][rightPosition.y];
     const leftTile = this.screen[leftPosition.x][leftPosition.y];
-    process.stdout.write(
-      `newDirection, this.direction:${
-        RepairDroidDirection[this.direction]
-      } frontTile:${OxygenTankTile[frontTile]}, rightTile:${
-        OxygenTankTile[rightTile]
-      }\n`
-    );
+    // process.stdout.write(
+    //   `newDirection, this.direction:${
+    //     RepairDroidDirection[this.direction]
+    //   } frontTile:${OxygenTankTile[frontTile]}, rightTile:${
+    //     OxygenTankTile[rightTile]
+    //   }\n`
+    // );
     if (
       rightTile === OxygenTankTile.Wall &&
       frontTile !== OxygenTankTile.Wall
@@ -798,13 +799,13 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
       // keep the wall on our right
       return leftDirection;
     }
-    process.stdout.write(
-      `newDirection, this.direction:${
-        RepairDroidDirection[this.direction]
-      } rightPosition:${JSON.stringify(
-        rightPosition
-      )}, lastPosition:${JSON.stringify(this.lastPosition)}\n`
-    );
+    // process.stdout.write(
+    //   `newDirection, this.direction:${
+    //     RepairDroidDirection[this.direction]
+    //   } rightPosition:${JSON.stringify(
+    //     rightPosition
+    //   )}, lastPosition:${JSON.stringify(this.lastPosition)}\n`
+    // );
     if (rightPosition === this.lastPosition) {
       // don't immediately backtrack
       return leftDirection;
@@ -823,15 +824,17 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         this.screen[this.position.x][this.position.y] ===
         OxygenTankTile.OxygenSystem
       ) {
+        // warp back
+        this.position = this.initialPosition;
         // ahobson protocol hack
         response = "\x00";
-        process.stdout.write(`response: 'ahobson protocol hack'\n`);
+        // process.stdout.write(`response: 'ahobson protocol hack'\n`);
       } else {
         this.direction = this.nextDirection();
         response = this.direction.toString();
-        process.stdout.write(
-          `response: '${response}' (${RepairDroidDirection[this.direction]})\n`
-        );
+        // process.stdout.write(
+        //   `response: '${response}' (${RepairDroidDirection[this.direction]})\n`
+        // );
       }
       return resolve(response);
     });
@@ -849,9 +852,9 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
     }
     return new Promise((_, reject) => {
       const inputData = parseInt(line.trim(), 10);
-      process.stdout.write(
-        `inputData: '${inputData}' (${RepairDroidResponse[inputData]})\n`
-      );
+      // process.stdout.write(
+      //   `inputData: '${inputData}' (${RepairDroidResponse[inputData]})\n`
+      // );
       switch (inputData) {
         case RepairDroidResponse.Wall:
           const wposition = this.directionPosition();
@@ -874,13 +877,13 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         default:
           reject(`Unknown inputData: ${inputData}`);
       }
-      process.stdout.write(
-        `--- ${this.position.x},${this.position.y} ${
-          RepairDroidDirection[this.direction]
-        }---\n`
-      );
-      process.stdout.write(this.buffer().join("\n"));
-      process.stdout.write("\n");
+      // process.stdout.write(
+      //   `--- ${this.position.x},${this.position.y} ${
+      //     RepairDroidDirection[this.direction]
+      //   }---\n`
+      // );
+      // process.stdout.write(this.buffer().join("\n"));
+      // process.stdout.write("\n");
     });
   }
 
@@ -925,6 +928,9 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
               line += OxygenTankTileGlyph.Unknown;
             }
             break;
+          case OxygenTankTile.Droid:
+            line += OxygenTankTileGlyph.Droid;
+            break;
           default:
             throw new Error(`Unknown tile: ${this.screen[x][y]}`);
         }
@@ -947,6 +953,60 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
   }
 }
 
+interface RepairDroidSearchPosition {
+  position: RepairDroidPosition;
+  movementCount: number;
+}
+
+function findMinimumMovement(repairDroid: RepairDroidIntcodeIO): number {
+  const searchDroid: RepairDroidIntcodeIO = new RepairDroidIntcodeIO();
+  searchDroid.initialPosition = JSON.parse(
+    JSON.stringify(repairDroid.initialPosition)
+  );
+  searchDroid.screen = JSON.parse(JSON.stringify(repairDroid.screen));
+  let minimumCount = 0;
+
+  const allDirections = [
+    RepairDroidDirection.East,
+    RepairDroidDirection.South,
+    RepairDroidDirection.West,
+    RepairDroidDirection.North
+  ];
+  const searchQueue: RepairDroidSearchPosition[] = [];
+  searchQueue.unshift({
+    position: searchDroid.initialPosition,
+    movementCount: 0
+  });
+  while (minimumCount === 0) {
+    const searchPos = searchQueue.shift();
+    if (searchPos === undefined) {
+      throw new Error("Empty searchPos");
+    }
+    searchDroid.position = searchPos.position;
+    searchDroid.screen[searchDroid.position.x][searchDroid.position.y] =
+      OxygenTankTile.Droid;
+
+    allDirections.forEach(dir => {
+      const pos = searchDroid.directionPosition(dir);
+      const tile = searchDroid.screen[pos.x][pos.y];
+      switch (tile) {
+        case OxygenTankTile.OxygenSystem:
+          minimumCount = searchPos.movementCount + 1;
+          break;
+        case OxygenTankTile.Empty:
+          searchQueue.push({
+            position: pos,
+            movementCount: searchPos.movementCount + 1
+          });
+          break;
+        default:
+        // nothing
+      }
+    });
+  }
+  return minimumCount;
+}
+
 if (require.main === module) {
   // argv[0] is ts-node
   // argv[1] is this_file
@@ -957,6 +1017,7 @@ if (require.main === module) {
       const screen = repairDroid.buffer().join("\n");
       process.stdout.write(screen);
       process.stdout.write("\n");
+      console.log("minimum", findMinimumMovement(repairDroid));
     })
     .catch(err => console.log("Error", err));
 }
