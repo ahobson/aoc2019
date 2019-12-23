@@ -719,8 +719,8 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
   initialPosition: RepairDroidPosition;
   position: RepairDroidPosition;
   lastPosition: RepairDroidPosition;
-  direction: RepairDroidDirection;
   oxygenPosition: RepairDroidPosition;
+  direction: RepairDroidDirection;
   open: boolean;
 
   constructor(
@@ -779,36 +779,6 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
     //     OxygenTankTile[rightTile]
     //   }\n`
     // );
-    if (this.oxygenPosition) {
-      // go around to the left
-      if (
-        leftTile === OxygenTankTile.Wall &&
-        frontTile !== OxygenTankTile.Wall
-      ) {
-        return this.direction;
-      }
-      if (
-        leftTile === OxygenTankTile.Wall &&
-        frontTile === OxygenTankTile.Wall
-      ) {
-        // keep the wall on our left
-        return rightDirection;
-      }
-      if (
-        leftTile === OxygenTankTile.Empty &&
-        frontTile === OxygenTankTile.Wall &&
-        rightTile === OxygenTankTile.Unknown
-      ) {
-        // keep the wall on our left
-        return rightDirection;
-      }
-      if (leftPosition === this.lastPosition) {
-        // don't immediately backtrack
-        return rightDirection;
-      }
-      // we want to keep the wall on our left, so find it again
-      return leftDirection;
-    }
     if (
       rightTile === OxygenTankTile.Wall &&
       frontTile !== OxygenTankTile.Wall
@@ -837,8 +807,12 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
     //     rightPosition
     //   )}, lastPosition:${JSON.stringify(this.lastPosition)}\n`
     // );
-    if (rightPosition === this.lastPosition) {
+    if (
+      rightPosition.x === this.lastPosition.x &&
+      rightPosition.y === this.lastPosition.y
+    ) {
       // don't immediately backtrack
+      // process.stdout.write("left: no backtrack\n");
       return leftDirection;
     }
     // we want to keep the wall on our right, so find it again
@@ -853,22 +827,24 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
       let response = this.direction.toString();
       if (
         this.oxygenPosition &&
-        (this.position === this.initialPosition ||
-          this.position === this.oxygenPosition)
+        this.position.x === this.initialPosition.x &&
+        this.position.y === this.initialPosition.y
       ) {
+        // ahobson protocol hack
         response = "\x00";
       } else if (
         this.screen[this.position.x][this.position.y] ===
         OxygenTankTile.OxygenSystem
       ) {
+        // process.stdout.write(`Oxygen!\n`);
+        this.oxygenPosition = JSON.parse(JSON.stringify(this.position));
         this.direction = this.nextDirection();
         response = this.direction.toString();
-        this.oxygenPosition = JSON.parse(JSON.stringify(this.position));
-        // // warp back
-        // this.position = this.initialPosition;
-        // // ahobson protocol hack
+        // ahobson protocol hack
         // response = "\x00";
-        // // process.stdout.write(`response: 'ahobson protocol hack'\n`);
+        // process.stdout.write(
+        //   `response: '${response}' (${RepairDroidDirection[this.direction]})\n`
+        // );
       } else {
         this.direction = this.nextDirection();
         response = this.direction.toString();
@@ -917,13 +893,13 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         default:
           reject(`Unknown inputData: ${inputData}`);
       }
-      process.stdout.write(
-        `--- ${this.position.x},${this.position.y} ${
-          RepairDroidDirection[this.direction]
-        }---\n`
-      );
-      process.stdout.write(this.buffer().join("\n"));
-      process.stdout.write("\n");
+      // process.stdout.write(
+      //   `--- ${this.position.x},${this.position.y} ${
+      //     RepairDroidDirection[this.direction]
+      //   }---\n`
+      // );
+      // process.stdout.write(this.buffer().join("\n"));
+      // process.stdout.write("\n");
     });
   }
 
@@ -998,7 +974,7 @@ interface RepairDroidSearchPosition {
   movementCount: number;
 }
 
-function findMinimumMovement(repairDroid: RepairDroidIntcodeIO): number {
+export function findMinimumMovement(repairDroid: RepairDroidIntcodeIO): number {
   const searchDroid: RepairDroidIntcodeIO = new RepairDroidIntcodeIO();
   searchDroid.initialPosition = JSON.parse(
     JSON.stringify(repairDroid.initialPosition)
@@ -1047,6 +1023,57 @@ function findMinimumMovement(repairDroid: RepairDroidIntcodeIO): number {
   return minimumCount;
 }
 
+export function findOyxgenDispersal(repairDroid: RepairDroidIntcodeIO): number {
+  const searchDroid: RepairDroidIntcodeIO = new RepairDroidIntcodeIO();
+  searchDroid.initialPosition = JSON.parse(
+    JSON.stringify(repairDroid.oxygenPosition)
+  );
+  searchDroid.screen = JSON.parse(JSON.stringify(repairDroid.screen));
+  let maxDepth = 0;
+
+  const allDirections = [
+    RepairDroidDirection.East,
+    RepairDroidDirection.South,
+    RepairDroidDirection.West,
+    RepairDroidDirection.North
+  ];
+  const searchQueue: RepairDroidSearchPosition[] = [];
+  searchQueue.unshift({
+    position: searchDroid.initialPosition,
+    movementCount: 0
+  });
+  while (searchQueue.length > 0) {
+    const searchPos = searchQueue.shift();
+    if (searchPos === undefined) {
+      throw new Error("Empty searchPos");
+    }
+    if (maxDepth < searchPos.movementCount) {
+      maxDepth = searchPos.movementCount;
+    }
+    searchDroid.position = searchPos.position;
+    searchDroid.screen[searchDroid.position.x][searchDroid.position.y] =
+      OxygenTankTile.Droid;
+
+    allDirections.forEach(dir => {
+      const pos = searchDroid.directionPosition(dir);
+      const tile = searchDroid.screen[pos.x][pos.y];
+      switch (tile) {
+        case OxygenTankTile.OxygenSystem:
+          break;
+        case OxygenTankTile.Empty:
+          searchQueue.push({
+            position: pos,
+            movementCount: searchPos.movementCount + 1
+          });
+          break;
+        default:
+        // nothing
+      }
+    });
+  }
+  return maxDepth;
+}
+
 if (require.main === module) {
   // argv[0] is ts-node
   // argv[1] is this_file
@@ -1057,7 +1084,7 @@ if (require.main === module) {
       const screen = repairDroid.buffer().join("\n");
       process.stdout.write(screen);
       process.stdout.write("\n");
-      console.log("minimum", findMinimumMovement(repairDroid));
+      console.log("oxygen", findOyxgenDispersal(repairDroid));
     })
     .catch(err => console.log("Error", err));
 }
