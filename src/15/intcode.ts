@@ -720,6 +720,7 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
   position: RepairDroidPosition;
   lastPosition: RepairDroidPosition;
   direction: RepairDroidDirection;
+  oxygenPosition: RepairDroidPosition;
   open: boolean;
 
   constructor(
@@ -778,6 +779,36 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
     //     OxygenTankTile[rightTile]
     //   }\n`
     // );
+    if (this.oxygenPosition) {
+      // go around to the left
+      if (
+        leftTile === OxygenTankTile.Wall &&
+        frontTile !== OxygenTankTile.Wall
+      ) {
+        return this.direction;
+      }
+      if (
+        leftTile === OxygenTankTile.Wall &&
+        frontTile === OxygenTankTile.Wall
+      ) {
+        // keep the wall on our left
+        return rightDirection;
+      }
+      if (
+        leftTile === OxygenTankTile.Empty &&
+        frontTile === OxygenTankTile.Wall &&
+        rightTile === OxygenTankTile.Unknown
+      ) {
+        // keep the wall on our left
+        return rightDirection;
+      }
+      if (leftPosition === this.lastPosition) {
+        // don't immediately backtrack
+        return rightDirection;
+      }
+      // we want to keep the wall on our left, so find it again
+      return leftDirection;
+    }
     if (
       rightTile === OxygenTankTile.Wall &&
       frontTile !== OxygenTankTile.Wall
@@ -821,14 +852,23 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
       }
       let response = this.direction.toString();
       if (
+        this.oxygenPosition &&
+        (this.position === this.initialPosition ||
+          this.position === this.oxygenPosition)
+      ) {
+        response = "\x00";
+      } else if (
         this.screen[this.position.x][this.position.y] ===
         OxygenTankTile.OxygenSystem
       ) {
-        // warp back
-        this.position = this.initialPosition;
-        // ahobson protocol hack
-        response = "\x00";
-        // process.stdout.write(`response: 'ahobson protocol hack'\n`);
+        this.direction = this.nextDirection();
+        response = this.direction.toString();
+        this.oxygenPosition = JSON.parse(JSON.stringify(this.position));
+        // // warp back
+        // this.position = this.initialPosition;
+        // // ahobson protocol hack
+        // response = "\x00";
+        // // process.stdout.write(`response: 'ahobson protocol hack'\n`);
       } else {
         this.direction = this.nextDirection();
         response = this.direction.toString();
@@ -877,13 +917,13 @@ export class RepairDroidIntcodeIO extends IntcodeIO {
         default:
           reject(`Unknown inputData: ${inputData}`);
       }
-      // process.stdout.write(
-      //   `--- ${this.position.x},${this.position.y} ${
-      //     RepairDroidDirection[this.direction]
-      //   }---\n`
-      // );
-      // process.stdout.write(this.buffer().join("\n"));
-      // process.stdout.write("\n");
+      process.stdout.write(
+        `--- ${this.position.x},${this.position.y} ${
+          RepairDroidDirection[this.direction]
+        }---\n`
+      );
+      process.stdout.write(this.buffer().join("\n"));
+      process.stdout.write("\n");
     });
   }
 
